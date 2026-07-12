@@ -1,0 +1,771 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><title>Retail Media, Decoded — The Automated Stock Market of Shelves</title>
+<style>
+  :root{
+    /* layout tokens */
+    --canvas:#FBFBFA; --ivory:#FFFFFF; --ink:#111111; --slate:#555555; --mist:#8A8A85;
+    --sapphire:#1D4ED8; --gold:#C5A059; --gold-deep:#9A7B3F;
+    --hairline:rgba(17,17,17,.10);
+    --display:"Inter Display","SF Pro Display",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --serif:"Instrument Serif","Playfair Display",Georgia,"Times New Roman",serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--ink);overflow-x:hidden;-webkit-font-smoothing:antialiased;
+    font-family:var(--display);line-height:1.6}
+  ::selection{background:rgba(29,78,216,.16)}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  a{color:var(--sapphire)}
+  button:focus-visible,a:focus-visible{outline:2px solid var(--sapphire);outline-offset:3px}
+
+  /* progress */
+  #pbar{position:fixed;top:0;left:0;height:2px;width:0;z-index:50;background:linear-gradient(90deg,var(--sapphire),var(--gold))}
+  #rail{position:fixed;right:26px;top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;gap:14px}
+  #rail span{width:7px;height:7px;border-radius:50%;background:rgba(17,17,17,.14);transition:all .35s}
+  #rail span.on{background:var(--sapphire);transform:scale(1.4);box-shadow:0 0 0 4px rgba(29,78,216,.12)}
+
+  /* ---------- scroll stage ---------- */
+  #journey{position:relative;height:900vh}
+  #stage{position:sticky;top:0;height:100vh;overflow:hidden;background:
+    radial-gradient(110% 80% at 50% 30%, #FFFFFF 0%, #FBFBFA 55%, #F3F2EE 100%)}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* chapters */
+  .ch{position:absolute;inset:0;display:flex;align-items:center;pointer-events:none;opacity:0;
+    padding:0 clamp(24px,7vw,110px)}
+  .ch-in{max-width:600px;transform:translateY(20px);transition:transform .5s cubic-bezier(.22,1,.36,1)}
+  .ch.live .ch-in{transform:none}
+  .ch.right{justify-content:flex-end;text-align:right}
+  .ch.center{justify-content:center;text-align:center}
+  .ch.center .ch-in{max-width:780px}
+  .kick{font-size:.68rem;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--sapphire)}
+  .kick.g{color:var(--gold-deep)}
+  .ch h1{font-family:var(--display);font-size:clamp(2.9rem,8vw,6.2rem);font-weight:850;letter-spacing:-.035em;
+    line-height:.99;margin:18px 0;text-wrap:balance}
+  .ch h2{font-family:var(--display);font-size:clamp(2rem,4.8vw,3.6rem);font-weight:820;letter-spacing:-.028em;
+    line-height:1.02;margin:16px 0 12px;text-wrap:balance}
+  .accent{color:var(--sapphire)}
+  .goldtx{background:linear-gradient(95deg,var(--gold-deep),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lay{font-family:var(--serif);font-style:italic;font-size:clamp(1.2rem,2vw,1.5rem);color:var(--slate);
+    line-height:1.6;max-width:52ch}
+  .ch.right .lay{margin-left:auto}
+  .ch.center .lay{margin:0 auto}
+  .lay b{color:var(--ink);font-style:normal;font-family:var(--display);font-weight:700;font-size:.92em}
+  .hint{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;
+    align-items:center;gap:8px;color:var(--mist);font-size:.68rem;letter-spacing:.3em;text-transform:uppercase}
+  .hint .line{width:1px;height:44px;background:linear-gradient(180deg,var(--sapphire),transparent);animation:drop 1.9s ease-in-out infinite}
+  @keyframes drop{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1)}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  /* metric containers */
+  .metrics{display:flex;gap:clamp(16px,3.5vw,40px);margin-top:30px;flex-wrap:wrap}
+  .ch.right .metrics{justify-content:flex-end} .ch.center .metrics{justify-content:center}
+  .metric{padding:16px 22px;border-radius:14px;background:var(--ivory);border:1px solid var(--hairline);
+    box-shadow:0 10px 34px rgba(17,17,17,.06);text-align:left}
+  .metric b{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:clamp(1.4rem,3vw,2.1rem);
+    font-weight:700;letter-spacing:-.02em;line-height:1.1}
+  .metric span{font-size:.82rem;color:var(--slate);letter-spacing:.03em;display:block;margin-top:4px;max-width:22ch}
+  .metric.blue b{color:var(--sapphire)}
+  .metric.goldm{border-color:rgba(197,160,89,.5);background:linear-gradient(160deg,#FFFDF7,#FBF4E4)}
+  .metric.goldm b{color:var(--gold-deep)}
+
+  /* ticker tape (phase 3) */
+  #ticker{position:absolute;left:0;right:0;bottom:0;background:var(--ink);color:#EDEDEA;overflow:hidden;
+    padding:10px 0;opacity:0;transition:opacity .4s;border-top:2px solid var(--gold)}
+  #ticker .tk{display:flex;gap:44px;width:max-content;animation:tk 22s linear infinite;
+    font-family:var(--mono);font-size:.88rem;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+  @keyframes tk{to{transform:translateX(-50%)}}
+  #ticker .up{color:#7DD8A8} #ticker .win{color:var(--gold)}
+
+
+  /* ---------- programmatic workflow simulator ---------- */
+  #wf{margin-top:48px;display:grid;grid-template-columns:300px 1fr;gap:clamp(24px,4vw,56px);align-items:start}
+  .phone{position:relative;width:280px;margin:0 auto;border-radius:36px;background:#111;padding:12px;
+    box-shadow:0 28px 70px rgba(17,17,17,.22)}
+  .phone .notch{width:90px;height:20px;background:#111;border-radius:0 0 14px 14px;position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:3}
+  .phone .screen{position:relative;border-radius:26px;background:#FBFBFA;overflow:hidden;padding:34px 14px 16px;min-height:420px}
+  .app-head{font-weight:850;font-size:1rem;letter-spacing:-.02em;margin-bottom:10px}
+  .app-head small{color:var(--mist);font-weight:600;display:block;font-size:.68rem}
+  .tile{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-radius:12px;
+    background:#fff;border:1px solid var(--hairline);margin-bottom:9px;font-size:.86rem;font-weight:650;transition:all .4s}
+  .tile span{font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-deep)}
+  .tile.sp{border-color:rgba(197,160,89,.35)}
+  #wf[data-step="4"] .tile.sp{border-color:var(--gold);background:linear-gradient(120deg,#FFFDF6,#FBF1DC);
+    box-shadow:0 8px 28px rgba(197,160,89,.35);transform:scale(1.04)}
+  .receipt{position:absolute;inset:auto 12px 14px;padding:14px;border-radius:12px;background:#111;color:#EDEDEA;
+    font-family:var(--mono);font-size:.74rem;line-height:1.5;opacity:0;transform:translateY(16px);transition:all .45s}
+  .receipt b{color:#C5A059}
+  #wf[data-step="5"] .receipt{opacity:1;transform:none}
+  .sig{position:absolute;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid rgba(29,78,216,.35);
+    color:var(--sapphire);font-size:.7rem;font-weight:750;box-shadow:0 8px 22px rgba(29,78,216,.14);
+    opacity:0;transform:scale(.7);transition:all .5s;white-space:nowrap;z-index:4}
+  #wf[data-step="0"] .sig{opacity:1;transform:none}
+  .sig.a{top:8%;left:-38%}.sig.b{top:26%;right:-34%}.sig.c{top:50%;left:-42%}.sig.d{top:70%;right:-38%}
+  .wf-pipe{display:flex;flex-direction:column;gap:10px}
+  .wnode{display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start;padding:16px 18px;border-radius:16px;
+    border:2px solid transparent;background:var(--canvas);transition:all .4s;cursor:pointer;text-align:left;width:100%;font:inherit;color:inherit}
+  .wnode .wi{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:1.25rem;
+    background:#fff;border:1px solid var(--hairline);transition:all .4s}
+  .wnode b{display:block;font-size:1.02rem;font-weight:800;letter-spacing:-.01em}
+  .wnode small{display:block;font-size:.84rem;color:var(--slate);line-height:1.5;margin-top:2px}
+  .wnode .ms{font-family:var(--mono);font-size:.7rem;color:var(--mist);font-weight:700}
+  .wnode.hot{border-color:var(--sapphire);background:#fff;box-shadow:0 16px 40px rgba(29,78,216,.12)}
+  .wnode.hot .wi{background:var(--sapphire);color:#fff;border-color:var(--sapphire)}
+  .wnode.gold.hot{border-color:var(--gold)} .wnode.gold.hot .wi{background:var(--gold)}
+  .bids{display:none;gap:6px;margin-top:10px;flex-direction:column}
+  #wf[data-step="2"] .bids{display:flex}
+  .bid{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.76rem;padding:7px 12px;
+    border-radius:8px;background:var(--canvas);border:1px solid var(--hairline)}
+  .bid.win{border-color:var(--gold);color:var(--gold-deep);font-weight:700}
+  .wf-bar{grid-column:1/-1;display:flex;align-items:center;gap:16px;margin-top:8px}
+  .wf-bar .tr{flex:1;height:8px;border-radius:99px;background:var(--canvas);border:1px solid var(--hairline);overflow:hidden}
+  .wf-bar .tr div{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--sapphire),var(--gold));transition:width .5s}
+  .wf-bar b{font-family:var(--mono);font-size:1rem;color:var(--sapphire);min-width:84px;text-align:right}
+  @media(max-width:860px){#wf{grid-template-columns:1fr}.phone{width:min(280px,84vw)}
+    .sig.a{left:2%}.sig.c{left:0}.sig.b{right:2%}.sig.d{right:0}}
+
+
+  /* ---------- growth bars ---------- */
+  .growth{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;margin-top:44px}
+  .gcol{padding:26px;border-radius:18px;border:1px solid var(--hairline);background:#fff}
+  .gcol h3{font-size:1.05rem;font-weight:800;margin-bottom:4px}
+  .gcol .gsub{font-size:.8rem;color:var(--mist);margin-bottom:20px;display:block}
+  .gpair{display:flex;align-items:flex-end;gap:22px;height:170px}
+  .gbar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;height:100%}
+  .gbar .bar{width:100%;border-radius:8px 8px 3px 3px;background:#E7E4DC;transition:height 1.1s cubic-bezier(.22,1,.36,1);height:0}
+  .gbar.hi .bar{background:linear-gradient(180deg,var(--sapphire),#4E7BE8)}
+  .gbar.hi.gold .bar{background:linear-gradient(180deg,var(--gold),#D9BC7E)}
+  .gbar b{font-family:var(--mono);font-size:1rem;font-weight:700}
+  .gbar.hi b{color:var(--sapphire)} .gbar.hi.gold b{color:var(--gold-deep)}
+  .gbar small{font-size:.72rem;color:var(--mist)}
+  .gcol .delta{display:inline-block;margin-top:16px;font-family:var(--mono);font-size:.78rem;font-weight:700;
+    color:#1F7A4D;background:rgba(31,122,77,.1);padding:5px 12px;border-radius:999px}
+
+
+  /* ---------- the order book (live auction terminal) ---------- */
+  .obwrap{display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(24px,4vw,52px);margin-top:44px;align-items:start}
+  .obterm{border-radius:20px;background:var(--ink);color:#EDEDEA;padding:24px;box-shadow:0 26px 70px rgba(17,17,17,.28);
+    font-family:var(--mono);font-variant-numeric:tabular-nums;min-height:380px;position:relative;overflow:hidden}
+  .obterm .obhead{display:flex;justify-content:space-between;align-items:center;font-size:.78rem;color:#9BA3AF;
+    border-bottom:1px solid rgba(255,255,255,.14);padding-bottom:12px;margin-bottom:6px}
+  .obterm .obhead b{color:var(--gold);font-size:.9rem}
+  #ob-status{color:#7DD8A8;font-weight:700}
+  .obrow{display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr;gap:10px;padding:11px 10px;border-radius:8px;
+    font-size:.82rem;align-items:center;opacity:0;transform:translateX(-18px);transition:all .45s cubic-bezier(.22,1,.36,1)}
+  .obrow.inb{opacity:1;transform:none}
+  .obrow.head{opacity:.55;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;transform:none;padding-bottom:4px}
+  .obrow .up{color:#7DD8A8}
+  .obrow.win{background:rgba(197,160,89,.16);outline:1px solid var(--gold);color:#fff}
+  .obrow.win .price{color:var(--gold);font-weight:700}
+  .obrow.lose{opacity:.32;text-decoration:line-through}
+  .obstamp{position:absolute;right:22px;bottom:20px;padding:10px 16px;border:2px solid var(--gold);border-radius:10px;
+    color:var(--gold);font-weight:700;font-size:.82rem;transform:rotate(-6deg) scale(.5);opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1)}
+  .obstamp.on{opacity:1;transform:rotate(-6deg) scale(1)}
+  .obnarr{display:flex;flex-direction:column;gap:12px}
+  .obline{display:flex;gap:14px;align-items:flex-start;padding:15px 18px;border-radius:14px;background:var(--ivory);
+    border:1px solid var(--hairline);opacity:.35;transition:all .4s}
+  .obline.on{opacity:1;border-color:var(--sapphire);box-shadow:0 12px 34px rgba(29,78,216,.10)}
+  .obline .t{font-family:var(--mono);font-size:.7rem;color:var(--sapphire);font-weight:700;flex:none;padding-top:3px;min-width:56px}
+  .obline p{font-size:.95rem;color:var(--slate);line-height:1.5}
+  .obline p b{color:var(--ink)}
+  @media(max-width:860px){.obwrap{grid-template-columns:1fr}}
+
+  /* ---------- flat epilogue ---------- */
+  section.flat{padding:110px clamp(24px,7vw,110px);background:var(--ivory);border-top:1px solid var(--hairline)}
+  .flat-in{max-width:1040px;margin:0 auto}
+  .flat h2{font-size:clamp(1.8rem,4vw,2.6rem);font-weight:820;letter-spacing:-.025em;margin:14px 0 8px}
+  .flat .lay{margin-top:6px}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:44px}
+  .fcard{padding:28px;border-radius:18px;border:1px solid var(--hairline);background:var(--canvas);transition:transform .3s,box-shadow .3s}
+  .fcard:hover{transform:translateY(-5px);box-shadow:0 18px 44px rgba(17,17,17,.08)}
+  .fcard h3{font-size:1.05rem;font-weight:750;letter-spacing:-.01em;margin-bottom:6px}
+  .fcard p{font-size:.98rem;color:var(--slate)}
+  .fcard .fig{display:block;margin-top:16px;font-family:var(--mono);font-variant-numeric:tabular-nums;
+    font-size:1.5rem;font-weight:700;color:var(--sapphire);letter-spacing:-.02em}
+  .fcard .fig.g{color:var(--gold-deep)}
+  .fcard small{color:var(--mist);font-size:.78rem}
+  footer{padding:64px clamp(24px,7vw,110px) 88px;background:var(--ivory)}
+  footer h4{font-size:.68rem;letter-spacing:.26em;text-transform:uppercase;color:var(--mist);margin-bottom:12px}
+  .src{font-size:.88rem;color:var(--slate);line-height:2;max-width:80ch}
+  .src a{color:var(--slate);text-decoration-color:rgba(17,17,17,.25)} .src a:hover{color:var(--sapphire)}
+
+  @media(max-width:700px){
+    .ch{align-items:flex-end;padding-bottom:14vh}
+    .ch.right{justify-content:flex-start;text-align:left}
+    .ch.right .lay,.ch.right .metrics{margin-left:0;justify-content:flex-start}
+    #rail{display:none}
+    section.flat{padding:70px 24px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .hint .line{animation:none} #ticker .tk{animation:none}
+    .ch-in{transition:none;transform:none}
+  }
+</style>
+
+<div id="pbar" aria-hidden="true"></div>
+<nav id="rail" aria-hidden="true"><span class="on"></span><span></span><span></span><span></span><span></span></nav>
+
+<main>
+<div id="journey" aria-label="Scroll-driven story: Retail Media, Decoded">
+  <div id="stage">
+    <canvas id="gl" role="img" aria-label="3D scene: a product box that splits open, becomes a live trading network, and reassembles into a secure vault"></canvas>
+
+    <!-- PHASE 1 · 0–15% -->
+    <section class="ch center live" data-a="0" data-b="0.15" aria-label="Phase 1: the simple box">
+      <div class="ch-in">
+        <p class="kick">Retail Media, Decoded · verified July 2026</p>
+        <h1>Every product<br>is now <span class="accent">an ad.</span></h1>
+        <p class="lay">This cereal box is no longer just breakfast. It's a billboard — on the store's app <b>and</b> on digital screens inside the store itself. Keep scrolling to see how a supermarket hides a business <b>20× more profitable</b> inside its shelves.</p>
+      </div>
+      <div class="hint"><div class="line"></div>scroll</div>
+    </section>
+
+    <!-- PHASE 2 · 16–40% -->
+    <section class="ch right" data-a="0.16" data-b="0.40" aria-label="Phase 2: the margin flip">
+      <div class="ch-in">
+        <p class="kick g">Phase 02 · The margin flip</p>
+        <h2>Split it open —<br><span class="goldtx">gold pours out.</span></h2>
+        <p class="lay">Selling you the cereal makes a grocer pennies. Selling the ad slot <b>above</b> the cereal makes them massive dollars. Same shelf, completely different business.</p>
+        <div class="metrics">
+          <div class="metric"><b class="num">~3%</b><span>grocery margin — the collapsing shell</span></div>
+          <div class="metric goldm"><b class="num">70–90%</b><span>RMN profit engine — the light inside</span></div>
+          <div class="metric blue"><b class="num">~⅓</b><span>of Walmart's operating profit, from &lt;1% of revenue (FY2025, Walmart Connect)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 3 · 41–65% -->
+    <section class="ch" data-a="0.41" data-b="0.65" aria-label="Phase 3: the programmatic engine room">
+      <div class="ch-in">
+        <p class="kick">Phase 03 · The engine room</p>
+        <h2>A stock market<br>for <span class="accent">attention.</span></h2>
+        <p class="lay">How does it scale? <b>Programmatic AI.</b> Think of it as a lightning-fast stock market. Every single time a shopper opens an app, the store's computer asks brands: <b>"Who wants to show an ad right now?"</b> In a tenth of a second an automated auction runs, a winner is picked, and the ad loads. Humans simply aren't fast enough to do this — automation is the rocket fuel.</p>
+        <div class="metrics">
+          <div class="metric blue"><b class="num" id="auction-ms">~100ms</b><span>per auction — brands' computers (DSP) buy, the store's system (SSP) sells, verified live</span></div>
+          <div class="metric"><b class="num">millions</b><span>of placements traded every minute</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 4 · 66–85% -->
+    <section class="ch center" data-a="0.66" data-b="0.85" aria-label="Phase 4: the global constellations">
+      <div class="ch-in">
+        <p class="kick g">Phase 04 · Scaling the peak</p>
+        <h2>One engine, <span class="accent">three continents.</span></h2>
+        <p class="lay">Because of programmatic software, this has detonated into a global powerhouse. Sponsored search bars in the <b>US</b>, digital screens covering checkout lines in <b>Japan</b>, 10-minute delivery apps in <b>India</b> — automation is running the entire show.</p>
+        <div class="metrics">
+          <div class="metric blue"><b class="num">$71.1B</b><span>US 2026 — search monetization loops</span></div>
+          <div class="metric"><b class="num">¥900B+</b><span>Japan by 2027 — in-store digital signage</span></div>
+          <div class="metric goldm"><b class="num">₹4,900 cr</b><span>India 2026E — quick-commerce dispatch</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE 5 · 86–100% -->
+    <section class="ch center" data-a="0.86" data-b="1" aria-label="Phase 5: the data clean room">
+      <div class="ch-in">
+        <p class="kick">Phase 05 · The safe vault</p>
+        <h2>Reassembled as a <span class="goldtx">Secure Clean Room.</span><br>Cookie-free. Zero PII. Absolute privacy.</h2>
+        <p class="lay">The best part? Your personal data stays locked in a digital vault. The store tracks what you bought, matches it to the ad safely, and tells the brand <b>"it worked"</b> — without ever revealing your identity or using creepy tracking cookies.</p>
+      </div>
+    </section>
+
+    <!-- live bid ticker (phase 3 only) -->
+    <div id="ticker" aria-hidden="true">
+      <div class="tk" id="tk-track"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- programmatic workflow simulator -->
+<section class="flat" aria-label="The full programmatic workflow, step by step" style="background:var(--canvas)">
+  <div class="flat-in">
+    <p class="kick">The full workflow · Watch it happen</p>
+    <h2>From a thumb-tap to a verified sale — six moves, ~100 milliseconds.</h2>
+    <p class="lay">Here's the whole machine on one screen. The phone on the left is a real shopper; the pipeline on the right is what fires the instant they open the app. It loops automatically — or click any step to freeze it.</p>
+    <div id="wf" data-step="0">
+      <div class="phone" aria-hidden="true">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="app-head">⚡ QuickMart <small>groceries in 10 minutes</small></div>
+          <div class="tile sp">🥣 Oatie Oats <span>Sponsored ✦</span></div>
+          <div class="tile">🥛 Whole Milk</div>
+          <div class="tile">🍞 Sourdough</div>
+          <div class="tile">🍌 Bananas</div>
+          <div class="tile">🥚 Free-range Eggs</div>
+          <div class="receipt">🧾 RECEIPT · Oatie Oats ✓<br><b>matched to Ad #001</b> — sales lift &amp; ROAS reported to brand. No identity shared.</div>
+        </div>
+        <div class="sig a">📍 near store #204</div>
+        <div class="sig b">🛒 breakfast intender</div>
+        <div class="sig c">🪪 loyalty ID (hashed)</div>
+        <div class="sig d">🕗 8:04 AM · mobile</div>
+      </div>
+      <div class="wf-pipe" role="tablist" aria-label="Workflow steps">
+        <button class="wnode hot" data-w="0" role="tab" aria-selected="true"><span class="wi">📱</span><span><b>1 · The signal fires <span class="ms">0–5ms</span></b><small>A shopper opens the app on their phone (or laptop, or walks past a smart screen). Privacy-safe signals attach to the moment: rough location, basket context, hashed loyalty ID, time of day. Never their name.</small></span></button>
+        <button class="wnode" data-w="1" role="tab" aria-selected="false"><span class="wi">🏪</span><span><b>2 · The store's desk announces <span class="ms">5–20ms</span></b><small>The retailer's selling computer (SSP) broadcasts: "One premium slot, cereal aisle, breakfast intender — who bids?"</small></span></button>
+        <button class="wnode" data-w="2" role="tab" aria-selected="false"><span class="wi">🤖</span><span><b>3 · Brands' computers bid <span class="ms">20–60ms</span></b><small>DSPs for competing brands price this exact impression using the retailer's first-party data.</small>
+          <span class="bids"><span class="bid win">OATIE OATS <span>$3.42 CPM ✦ WIN</span></span><span class="bid">KRUNCH! <span>$3.10 CPM</span></span><span class="bid">BERRY-O <span>$2.71 CPM</span></span></span></span></button>
+        <button class="wnode" data-w="3" role="tab" aria-selected="false"><span class="wi">🛡️</span><span><b>4 · Referees verify <span class="ms">60–80ms</span></b><small>Independent verification partners confirm the impression is real, viewable, fraud-free and brand-safe.</small></span></button>
+        <button class="wnode gold" data-w="4" role="tab" aria-selected="false"><span class="wi">🖼️</span><span><b>5 · The ad renders <span class="ms">80–100ms</span></b><small>The winning tile appears at the top of the shopper's screen — before the page finishes loading. Watch the phone.</small></span></button>
+        <button class="wnode gold" data-w="5" role="tab" aria-selected="false"><span class="wi">🧾</span><span><b>6 · The loop closes <span class="ms">later, at checkout</span></b><small>The shopper buys. The register matches the receipt to the ad inside a clean room and tells the brand "it worked" — closed-loop measurement, zero PII.</small></span></button>
+      </div>
+      <div class="wf-bar" aria-hidden="true"><div class="tr"><div id="wf-fill"></div></div><b id="wf-ms">0 ms</b></div>
+    </div>
+  </div>
+</section>
+
+
+
+<!-- the order book: one auction, trader's view -->
+<section class="flat" aria-label="A live order book showing one programmatic auction" style="background:var(--ivory)">
+  <div class="flat-in">
+    <p class="kick">The trading terminal · One auction, trader's view</p>
+    <h2>Watch the "stock market" clear one trade.</h2>
+    <p class="lay">This is the same 100 milliseconds from the pipeline above — but shown the way a Wall Street trader would see it: an <b>order book</b>. The ad space is the &ldquo;stock&rdquo; being traded — not the cereal itself. The bids are real. The winner takes the shopper's screen. It replays forever; no two auctions are identical.</p>
+    <div class="obwrap">
+      <div class="obterm" aria-hidden="true">
+        <div class="obhead"><b>◉ SLOT #<span id="ob-slot">4821</span> · CEREAL AISLE · MOBILE</b><span id="ob-status">OPEN</span></div>
+        <div class="obrow head inb"><span>BIDDER (DSP)</span><span>BID</span><span>SIGNAL FIT</span><span>STATUS</span></div>
+        <div class="obrow" data-r="0"><span>🥣 OATIE OATS</span><span class="price up">$3.42</span><span>98% match</span><span class="st">bidding…</span></div>
+        <div class="obrow" data-r="1"><span>🍫 KRUNCH!</span><span class="price up">$3.10</span><span>91% match</span><span class="st">bidding…</span></div>
+        <div class="obrow" data-r="2"><span>🍓 BERRY-O</span><span class="price up">$2.71</span><span>84% match</span><span class="st">bidding…</span></div>
+        <div class="obrow" data-r="3"><span>🌾 FIBRE FARM</span><span class="price up">$2.05</span><span>77% match</span><span class="st">bidding…</span></div>
+        <div class="obstamp" id="ob-stamp">CLEARED · $3.42 CPM · 96ms ✓</div>
+      </div>
+      <div class="obnarr" aria-label="What is happening, step by step">
+        <div class="obline" data-n="0"><span class="t">0ms</span><p><b>The slot opens.</b> A shopper's screen has one empty ad space — the "stock" up for sale.</p></div>
+        <div class="obline" data-n="1"><span class="t">20–60ms</span><p><b>Bids stream in.</b> Each brand's computer prices this exact shopper using the store's first-party data — that's the "signal fit" column.</p></div>
+        <div class="obline" data-n="2"><span class="t">60–80ms</span><p><b>Referees verify.</b> Fake or unviewable impressions get thrown out before money moves.</p></div>
+        <div class="obline" data-n="3"><span class="t">~96ms</span><p><b>The market clears.</b> Highest qualified bid wins the screen; everyone else is outbid. The shopper never felt a thing.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- growth in three currencies -->
+<section class="flat" aria-label="Growth of retail media in three markets" style="background:var(--ivory)">
+  <div class="flat-in">
+    <p class="kick g">The trajectory · Why everyone is racing in</p>
+    <h2>Growth you can see from orbit.</h2>
+    <p class="lay">Three markets, three currencies, one direction. These bars grow as the money does.</p>
+    <div class="growth">
+      <div class="gcol"><h3>🇺🇸 United States</h3><span class="gsub">retail media ad spend, USD billions (eMarketer)</span>
+        <div class="gpair">
+          <div class="gbar"><b class="num">$60.3B</b><div class="bar" data-h="76"></div><small>2025</small></div>
+          <div class="gbar hi"><b class="num">$71.1B</b><div class="bar" data-h="92"></div><small>2026</small></div>
+        </div><span class="delta">▲ +17.8% YoY — faster than search &amp; social</span></div>
+      <div class="gcol"><h3>🇯🇵 Japan</h3><span class="gsub">retail media market, JPY billions (MGSSI / CARTA)</span>
+        <div class="gpair">
+          <div class="gbar"><b class="num">¥470B</b><div class="bar" data-h="48"></div><small>2024</small></div>
+          <div class="gbar hi gold"><b class="num">¥900B+</b><div class="bar" data-h="92"></div><small>2027E</small></div>
+        </div><span class="delta">▲ nearly 2× in three years</span></div>
+      <div class="gcol"><h3>🇮🇳 India</h3><span class="gsub">quick-commerce ad revenue, INR crore (Storyboard18)</span>
+        <div class="gpair">
+          <div class="gbar"><b class="num">₹3,000</b><div class="bar" data-h="56"></div><small>2025</small></div>
+          <div class="gbar hi"><b class="num">₹4,900</b><div class="bar" data-h="92"></div><small>2026E</small></div>
+        </div><span class="delta">▲ +63% in one year — Zepto ads alone +151%</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- epilogue -->
+<section class="flat" aria-label="Reference: the numbers to keep">
+  <div class="flat-in">
+    <p class="kick">Epilogue · Keep these numbers</p>
+    <h2>The trading floor, in three markets.</h2>
+    <p class="lay">Same programmatic engine — DSPs bidding, SSPs selling, verifiers refereeing — expressed three different ways around the world.</p>
+    <div class="grid3">
+      <div class="fcard"><h3>🇺🇸 United States — the search floor</h3>
+        <p>Born in Amazon's search bar. Amazon + Walmart hold ~85% of the market and take ~89% of every new dollar; Kroger, Target Roundel, and regional grocers like Meijer Media run the same playbook.</p>
+        <span class="fig num">$60.3B → $71.1B</span><small>2025 → 2026, +17.8% · now bigger than traditional TV (eMarketer)</small></div>
+      <div class="fcard"><h3>🇯🇵 Japan — the in-store exchange</h3>
+        <p>Lower e-commerce adoption pushed the market into physical stores: FamilyMart's signage network covers ~10,000 stores, synced to the 26M-download FamiPay app at the moment of decision.</p>
+        <span class="fig num">¥470B → ¥900B+</span><small>2024 → 2027 projection (MGSSI / CARTA)</small></div>
+      <div class="fcard"><h3>🇮🇳 India — the velocity market</h3>
+        <p>The app is the shelf. Sponsored tiles inside Blinkit, Zepto &amp; Instamart bankroll 10-minute delivery — ads are ~15% of Blinkit's revenue; Zepto's ad revenue grew +151% in FY26.</p>
+        <span class="fig g num">₹3,000 → ₹4,900 cr</span><small>2025 → 2026E (Storyboard18)</small></div>
+    </div>
+  </div>
+</section>
+
+<footer aria-label="Sources">
+  <h4>Sources &amp; verification</h4>
+  <p class="src">
+    Mitsui &amp; Co. Global Strategic Studies Institute, <i>"The Current State and Outlook for Retail Media"</i> (Nov 2025) ·
+    <a href="https://www.emarketer.com/content/retail-media-ad-spending-forecast-h1-2026">eMarketer Retail Media Forecast H1 2026</a> ·
+    <a href="https://www.emarketer.com/content/us-ad-spending-2026">eMarketer US Ad Spending 2026</a> ·
+    <a href="https://www.adexchanger.com/commerce/walmarts-ad-revenue-totaled-6-4-billion-in-2025-as-the-ecom-flywheel-started-to-spin/">AdExchanger — Walmart $6.4B (2025)</a> ·
+    <a href="https://www.storyboard18.com/amp/brand-marketing/fmcg-brands-increase-ad-spend-on-blinkit-zepto-and-instamart-for-growth-ws-l-99756.htm">Storyboard18 — India quick-commerce</a> ·
+    <a href="https://martech.org/why-we-care-about-retail-media-networks/">MarTech — ad margins 70–90% vs retail 3–4%</a>.
+    Typography: Inter Display / Instrument Serif / IBM Plex Mono with graceful system fallbacks. Figures are forecasts; currencies as reported.
+  </p>
+</footer>
+</main>
+
+<script>
+(() => {
+"use strict";
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cv = document.getElementById("gl");
+const ctx = cv.getContext("2d");
+let W=0,H=0,DPR=1;
+function resize(){ DPR=Math.min(2,devicePixelRatio||1); W=cv.width=cv.offsetWidth*DPR; H=cv.height=cv.offsetHeight*DPR; }
+resize(); addEventListener("resize",resize);
+
+/* ============ vector helpers (allocation-free hot path) ============ */
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
+const seg=(p,a,b)=>smooth((p-a)/(b-a));
+function rotXY(x,y,z,ax,ay,out){
+  let c=Math.cos(ay),s=Math.sin(ay);
+  const x1=x*c+z*s, z1=-x*s+z*c;
+  c=Math.cos(ax); s=Math.sin(ax);
+  out[0]=x1; out[1]=y*c-z1*s; out[2]=y*s+z1*c;
+  return out;
+}
+
+/* ============ fractured box (product package, 2:3:1 aspect) ============ */
+const NX=4, NY=5, S=1;
+const shards=[];
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const EX=0.72, EY=1.05, EZ=0.36; // package half-extents
+const faces=[
+  {o:[-EX,-EY, EZ],u:[2*EX/NX,0,0],v:[0,2*EY/NY,0],n:[0,0, 1]},
+  {o:[ EX,-EY,-EZ],u:[-2*EX/NX,0,0],v:[0,2*EY/NY,0],n:[0,0,-1]},
+  {o:[ EX,-EY, EZ],u:[0,0,-2*EZ/2],v:[0,2*EY/NY,0],n:[ 1,0,0],nu:2},
+  {o:[-EX,-EY,-EZ],u:[0,0, 2*EZ/2],v:[0,2*EY/NY,0],n:[-1,0,0],nu:2},
+  {o:[-EX, EY, EZ],u:[2*EX/NX,0,0],v:[0,0,-2*EZ/2],n:[0, 1,0],nv:2},
+  {o:[-EX,-EY,-EZ],u:[2*EX/NX,0,0],v:[0,0, 2*EZ/2],n:[0,-1,0],nv:2},
+];
+const add=(a,b,s=1)=>[a[0]+b[0]*s,a[1]+b[1]*s,a[2]+b[2]*s];
+const CLUSTERS=[[-2.7,0.8,0],[0,-1.4,0.5],[2.7,0.8,-0.3]];
+let idx=0;
+for (const f of faces){
+  const nu=f.nu||NX, nv=f.nv||NY;
+  for (let i=0;i<nu;i++) for (let j=0;j<nv;j++){
+    const p00=add(add(f.o,f.u,i),f.v,j);
+    const verts=[p00,add(p00,f.u),add(add(p00,f.u),f.v),add(p00,f.v)];
+    const c=verts.reduce((a,v)=>add(a,v,1),[0,0,0]).map(x=>x/4);
+    const jit=[rnd(-.7,.7),rnd(-.7,.7),rnd(-.7,.7)];
+    const exp=[f.n[0]*rnd(1.4,2.8)+jit[0], f.n[1]*rnd(1.4,2.8)+jit[1], f.n[2]*rnd(1.4,2.8)+jit[2]];
+    const cl=CLUSTERS[idx%3];
+    const th=rnd(0,6.283), ph=Math.acos(rnd(-1,1)), r=rnd(.4,.9);
+    shards.push({
+      rel:verts.map(v=>[v[0]-c[0],v[1]-c[1],v[2]-c[2]]),
+      base:c, exp,
+      splitDir: c[0] < 0 ? -1 : 1,
+      clT:[cl[0]+r*Math.sin(ph)*Math.cos(th), cl[1]+r*Math.sin(ph)*Math.sin(th), cl[2]+r*Math.cos(ph)],
+      vault:c.map(x=>x*0.66),
+      spin:[rnd(-1.8,1.8),rnd(-1.8,1.8),rnd(-1.8,1.8)],
+      warm:Math.random(), seed:rnd(0,6.28),
+    });
+    idx++;
+  }
+}
+// pick network nodes for phase 3 (stable subset of shards + 2 architectural nodes)
+const NET = [3, 17, 31, 45, 59, 73, 87, 101].map(i => shards[i % shards.length]);
+const DSP_POS=[-3.0, 1.7, 0.4], SSP_POS=[3.0, -1.5, 0.4];
+
+/* ============ scroll & phases ============ */
+let prog=0, mx=0, my=0;
+addEventListener("mousemove",e=>{mx=e.clientX/innerWidth-.5; my=e.clientY/innerHeight-.5;},{passive:true});
+const journey=document.getElementById("journey");
+function readScroll(){
+  const r=journey.getBoundingClientRect();
+  prog=Math.max(0,Math.min(1,-r.top/(r.height-innerHeight)));
+}
+
+/* phase curves (per screenplay):
+   0–.15 pedestal box · .16–.40 split + gold column · .41–.65 frozen network
+   .66–.85 constellations · .86–1 vault reassembly */
+const _p=[0,0,0];
+function shardPos(s,p,t,out){
+  const split = seg(p,0.16,0.26);
+  const burst = seg(p,0.26,0.40);
+  const gather= seg(p,0.66,0.78);
+  const vault = seg(p,0.86,0.97);
+  const drift = reduced?0:Math.sin(t*0.8+s.seed)*0.05;
+  let x=s.base[0]+s.splitDir*split*1.15+s.exp[0]*burst*1.7;
+  let y=s.base[1]+s.exp[1]*burst*1.5;
+  let z=s.base[2]+s.exp[2]*burst*1.7;
+  if (gather>0){ x=lerp(x,s.clT[0],gather); y=lerp(y,s.clT[1],gather); z=lerp(z,s.clT[2],gather); }
+  if (vault>0){ x=lerp(x,s.vault[0],vault); y=lerp(y,s.vault[1],vault); z=lerp(z,s.vault[2],vault); }
+  const flying=Math.min(1,split+burst)*(1-vault);
+  out[0]=x; out[1]=y+drift*flying; out[2]=z;
+  return flying;
+}
+
+/* ============ render ============ */
+const FOV=7.4, _v=[0,0,0], _n=[0,0,0];
+function project(x,y,z,ry,rx,cx,cy,scale,out){
+  rotXY(x,y,z,rx,ry,_p);
+  const zz=_p[2]+FOV, f=(FOV*0.88)/zz;
+  out[0]=cx+_p[0]*scale*f; out[1]=cy-_p[1]*scale*f; out[2]=zz;
+  return out;
+}
+const polys=[]; // reused
+function render(time){
+  ctx.clearRect(0,0,W,H);
+  const t=time/1000;
+  const ry=(reduced?0:t*0.10)+prog*6.4+mx*0.4;
+  const rx=0.24+my*0.3+seg(prog,0.26,0.40)*0.18;
+  const scale=Math.min(W,H*1.5)*(0.16 - seg(prog,0.26,0.44)*0.035 + seg(prog,0.86,1)*0.03);
+  const cx=W/2, cy=H*0.50;
+  const p1=1-seg(prog,0.14,0.22);            // pedestal presence
+  const goldK=seg(prog,0.18,0.34)*(1-seg(prog,0.40,0.47)); // gold column
+  const netK=seg(prog,0.43,0.50)*(1-seg(prog,0.64,0.70));  // network presence
+
+  /* pedestal + soft floor shadow (phase 1) */
+  if (p1>0.01){
+    ctx.globalAlpha=p1;
+    const base=[0,0,0]; project(0,-1.55,0,ry,rx,cx,cy,scale,base);
+    ctx.fillStyle="rgba(17,17,17,.07)";
+    ctx.beginPath(); ctx.ellipse(base[0],base[1]+14*DPR,scale*1.9,scale*0.34,0,0,7); ctx.fill();
+    // pedestal block
+    ctx.fillStyle="#F2F0EB";
+    ctx.strokeStyle="rgba(17,17,17,.08)";
+    const pw=scale*2.0, ph=scale*0.5;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(base[0]-pw/2, base[1]-ph*0.4, pw, ph, 10*DPR); else ctx.rect(base[0]-pw/2, base[1]-ph*0.4, pw, ph);
+    ctx.fill(); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+
+  /* golden light column (phase 2) */
+  if (goldK>0.01){
+    const top=[0,0,0], bot=[0,0,0];
+    project(0, 3.2*goldK, 0, ry, rx, cx, cy, scale, top);
+    project(0,-0.6, 0, ry, rx, cx, cy, scale, bot);
+    const gw=scale*0.9*goldK;
+    const g=ctx.createLinearGradient(0,bot[1],0,top[1]);
+    g.addColorStop(0,"rgba(197,160,89,.55)");
+    g.addColorStop(1,"rgba(197,160,89,0)");
+    ctx.fillStyle=g;
+    ctx.fillRect(cx-gw/2, top[1], gw, bot[1]-top[1]);
+    const halo=ctx.createRadialGradient(cx,bot[1],0,cx,bot[1],scale*2.4*goldK);
+    halo.addColorStop(0,`rgba(197,160,89,${.28*goldK})`); halo.addColorStop(1,"rgba(197,160,89,0)");
+    ctx.fillStyle=halo; ctx.fillRect(0,0,W,H);
+  }
+
+  /* shards */
+  polys.length=0;
+  for (const s of shards){
+    const flying=shardPos(s,prog,t,_p);
+    const px=_p[0],py=_p[1],pz=_p[2];
+    const spinX=s.spin[0]*flying*0.9, spinY=s.spin[1]*flying*0.9;
+    const pts=[]; let zsum=0, ok=true;
+    for (const rv of s.rel){
+      let vx=rv[0],vy=rv[1],vz=rv[2];
+      if (flying>0.02){ rotXY(vx,vy,vz,spinX,spinY,_v); vx=_v[0];vy=_v[1];vz=_v[2]; }
+      const o=[0,0,0];
+      project(vx+px,vy+py,vz+pz,ry,rx,cx,cy,scale,o);
+      if (o[2]<0.4){ok=false;break;}
+      pts.push(o); zsum+=o[2];
+    }
+    if(!ok) continue;
+    const a=s.rel[0],b=s.rel[1],c2=s.rel[2];
+    const nx=(b[1]-a[1])*(c2[2]-a[2])-(b[2]-a[2])*(c2[1]-a[1]),
+          ny=(b[2]-a[2])*(c2[0]-a[0])-(b[0]-a[0])*(c2[2]-a[2]),
+          nz=(b[0]-a[0])*(c2[1]-a[1])-(b[1]-a[1])*(c2[0]-a[0]);
+    rotXY(nx,ny,nz,rx,ry,_n);
+    const nl=Math.hypot(_n[0],_n[1],_n[2])||1;
+    const lum=0.86+0.14*((-_n[2]/nl)*0.6+(_n[1]/nl)*0.4);
+    polys.push({pts,z:zsum/4,lum,warm:s.warm,flying});
+  }
+  polys.sort((p,q)=>q.z-p.z);
+  for (const p of polys){
+    // ivory body, warm/cool micro-variation; sapphire hairline; gold kiss on flying shards
+    const wmix=p.warm;
+    const r=250-10*wmix, g=249-8*wmix, b=244+4*(1-wmix);
+    const L=p.lum;
+    ctx.beginPath();
+    ctx.moveTo(p.pts[0][0],p.pts[0][1]);
+    for(let i=1;i<4;i++) ctx.lineTo(p.pts[i][0],p.pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle=`rgb(${(r*L)|0},${(g*L)|0},${(b*L)|0})`;
+    ctx.fill();
+    const goldEdge=p.flying*0.5+goldK*0.4;
+    ctx.strokeStyle=goldEdge>0.25
+      ? `rgba(197,160,89,${0.35+goldEdge*0.3})`
+      : "rgba(29,78,216,.20)";
+    ctx.lineWidth=DPR*0.9;
+    ctx.stroke();
+  }
+
+  /* fiber-optic network + auction pings (phase 3) */
+  if (netK>0.01){
+    ctx.globalAlpha=netK;
+    const nodes=[];
+    for (const s of NET){ shardPos(s,prog,t,_p); const o=[0,0,0]; project(_p[0],_p[1],_p[2],ry,rx,cx,cy,scale,o); nodes.push(o); }
+    // architectural nodes pinned in screen space for guaranteed legibility
+    const dsp=[W*0.76, H*0.14, 1], ssp=[W*0.80, H*0.80, 1];
+    // links: dsp→each node→ssp
+    ctx.lineWidth=DPR;
+    for (let i=0;i<nodes.length;i++){
+      const n=nodes[i];
+      ctx.strokeStyle="rgba(29,78,216,.28)";
+      ctx.beginPath(); ctx.moveTo(dsp[0],dsp[1]); ctx.lineTo(n[0],n[1]); ctx.stroke();
+      ctx.strokeStyle="rgba(197,160,89,.4)";
+      ctx.beginPath(); ctx.moveTo(n[0],n[1]); ctx.lineTo(ssp[0],ssp[1]); ctx.stroke();
+      // ping: travels dsp→node→ssp on a per-link phase
+      const k=((t*1.4)+i*0.37)%1;
+      let bx,by,col;
+      if (k<0.5){ const u=k*2; bx=lerp(dsp[0],n[0],u); by=lerp(dsp[1],n[1],u); col="#1D4ED8"; }
+      else { const u=(k-0.5)*2; bx=lerp(n[0],ssp[0],u); by=lerp(n[1],ssp[1],u); col="#C5A059"; }
+      ctx.beginPath(); ctx.arc(bx,by,2.6*DPR,0,7);
+      ctx.fillStyle=col; ctx.fill();
+    }
+    // architectural nodes
+    for (const [pt,label,col] of [[dsp,"DSP · The Brand's Computer","#1D4ED8"],[ssp,"SSP · The Store's Desk","#9A7B3F"]]){
+      ctx.fillStyle="#FFFFFF"; ctx.strokeStyle=col; ctx.lineWidth=DPR*1.6;
+      const bw=170*DPR, bh=34*DPR;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(pt[0]-bw/2,pt[1]-bh/2,bw,bh,9*DPR); else ctx.rect(pt[0]-bw/2,pt[1]-bh/2,bw,bh);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle=col;
+      ctx.font=`700 ${10.5*DPR}px ${"'IBM Plex Mono',ui-monospace,monospace"}`;
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(label, pt[0], pt[1]);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  /* vault sheen (phase 5) */
+  const vk=seg(prog,0.90,1);
+  if (vk>0.02){
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,scale*3);
+    g.addColorStop(0,`rgba(29,78,216,${0.05*vk})`);
+    g.addColorStop(0.6,`rgba(197,160,89,${0.05*vk})`);
+    g.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+}
+
+/* ============ ticker ============ */
+const tickerEl=document.getElementById("ticker");
+const track=document.getElementById("tk-track");
+function seedTicker(){
+  const brands=["OATIE","KRUNCH","BERRY-O","FIBRE","SUNRISE","NOVA","PLENISH","CRSPR"];
+  let html="";
+  for (let rep=0;rep<2;rep++) for (let i=0;i<brands.length;i++){
+    const bid=(0.4+Math.random()*3.2).toFixed(2);
+    const ms=(60+Math.random()*70)|0;
+    const win=i%4===3;
+    html+=`<span>${brands[i]} <b class="up">$${bid} CPM</b> · ${ms}ms ${win?'<b class="win">● WON SLOT</b>':'· outbid'}</span>`;
+  }
+  track.innerHTML=html;
+}
+seedTicker(); setInterval(seedTicker, 11000);
+
+/* ============ chapters / UI ============ */
+const chs=[...document.querySelectorAll(".ch")];
+const dots=[...document.querySelectorAll("#rail span")];
+const pbar=document.getElementById("pbar");
+function updateUI(){
+  pbar.style.width=(prog*100).toFixed(2)+"%";
+  let live=0;
+  chs.forEach((c,i)=>{
+    const a=+c.dataset.a,b=+c.dataset.b,fade=0.03;
+    let o=0;
+    if (prog>=a&&prog<=b){
+      const fin=a===0?1:(prog-a)/fade, fout=b===1?1:(b-prog)/fade;
+      o=Math.min(1,fin,fout); live=i;
+    }
+    c.style.opacity=o.toFixed(3);
+    c.classList.toggle("live",o>0.35);
+  });
+  dots.forEach((d,i)=>d.classList.toggle("on",i===live));
+  tickerEl.style.opacity=(prog>=0.42&&prog<=0.66)?1:0;
+}
+
+function frame(now){ readScroll(); render(now); updateUI(); requestAnimationFrame(frame); }
+if (reduced){
+  const staticDraw=()=>{ readScroll(); render(2600); updateUI(); };
+  addEventListener("scroll",staticDraw,{passive:true}); staticDraw();
+} else requestAnimationFrame(frame);
+})();
+
+/* ============ programmatic workflow simulator ============ */
+(() => {
+  const wf=document.getElementById("wf");
+  if (!wf) return;
+  const nodes=[...wf.querySelectorAll(".wnode")];
+  const fill=document.getElementById("wf-fill");
+  const msEl=document.getElementById("wf-ms");
+  const MS=[5,20,60,80,100,100];
+  const LBL=["5 ms","20 ms","60 ms","80 ms","100 ms","✓ sold"];
+  let step=0, pin=0, timer=null;
+  function setStep(i){
+    step=i; wf.dataset.step=i;
+    nodes.forEach((n,j)=>{n.classList.toggle("hot",j===i);n.setAttribute("aria-selected",String(j===i));});
+    fill.style.width=MS[i]+"%";
+    msEl.textContent=LBL[i];
+  }
+  nodes.forEach(n=>n.addEventListener("click",()=>{setStep(+n.dataset.w);pin=Date.now();}));
+  const red=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!red){
+    timer=setInterval(()=>{
+      if (Date.now()-pin<9000) return;
+      setStep((step+1)%6);
+    },2600);
+  }
+  setStep(0);
+})();
+
+/* grow bars when visible */
+(() => {
+  const bars=document.querySelectorAll(".gbar .bar");
+  if (!bars.length) return;
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if (e.isIntersecting){ e.target.style.height=e.target.dataset.h+"%"; io.unobserve(e.target); }
+  }),{threshold:.4});
+  bars.forEach(b=>io.observe(b));
+})();
+
+/* ============ order book loop ============ */
+(() => {
+  const rows=[...document.querySelectorAll(".obrow[data-r]")];
+  if (!rows.length) return;
+  const narr=[...document.querySelectorAll(".obline")];
+  const stamp=document.getElementById("ob-stamp");
+  const status=document.getElementById("ob-status");
+  const slotEl=document.getElementById("ob-slot");
+  const red=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (red){ rows.forEach(r=>r.classList.add("inb")); narr.forEach(n=>n.classList.add("on"));
+    rows[0].classList.add("win"); stamp.classList.add("on"); return; }
+  const AISLES=["CEREAL AISLE","SNACKS","DAIRY","BEVERAGES","PET CARE"];
+  function cycle(){
+    rows.forEach(r=>{r.classList.remove("inb","win","lose");r.querySelector(".st").textContent="bidding…";});
+    narr.forEach(n=>n.classList.remove("on"));
+    stamp.classList.remove("on");
+    slotEl.textContent=(4000+Math.floor(Math.random()*5000));
+    document.querySelector(".obhead b").childNodes[2] && null;
+    status.textContent="OPEN";
+    narr[0].classList.add("on");
+    // vary prices a touch so replays feel alive
+    rows.forEach((r,i)=>{
+      const base=[3.42,3.10,2.71,2.05][i];
+      r.querySelector(".price").textContent="$"+(base+(Math.random()*.3-.15)).toFixed(2);
+    });
+    const t=[];
+    t.push(setTimeout(()=>{narr[0].classList.remove("on");narr[1].classList.add("on");},900));
+    rows.forEach((r,i)=>t.push(setTimeout(()=>r.classList.add("inb"), 1000+i*450)));
+    t.push(setTimeout(()=>{narr[1].classList.remove("on");narr[2].classList.add("on");
+      status.textContent="VERIFYING…"; rows.forEach(r=>r.querySelector(".st").textContent="verified ✓");},3200));
+    t.push(setTimeout(()=>{
+      narr[2].classList.remove("on");narr[3].classList.add("on");
+      status.textContent="CLEARED";
+      // winner = highest displayed price
+      let hi=0, hv=-1;
+      rows.forEach((r,i)=>{const v=parseFloat(r.querySelector(".price").textContent.slice(1)); if(v>hv){hv=v;hi=i;}});
+      rows.forEach((r,i)=>{ if(i===hi){r.classList.add("win");r.querySelector(".st").textContent="WON SLOT ✦";}
+        else {r.classList.add("lose");r.querySelector(".st").textContent="outbid";}});
+      stamp.textContent="CLEARED · $"+hv.toFixed(2)+" CPM · "+(88+Math.floor(Math.random()*14))+"ms ✓";
+      stamp.classList.add("on");
+    },4400));
+    t.push(setTimeout(cycle,7600));
+  }
+  const io=new IntersectionObserver(es=>{ if(es[0].isIntersecting){ io.disconnect(); cycle(); } },{threshold:.3});
+  io.observe(document.querySelector(".obterm"));
+})();
+</script>
+</body></html>

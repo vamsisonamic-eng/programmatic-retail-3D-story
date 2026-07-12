@@ -1,0 +1,600 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><title>Retail Media, Decoded — A 3D Scroll Story</title>
+<style>
+  :root{
+    --bg:#05070d; --ink:#eef3f8; --muted:#93a4bb; --faint:#5c6c82;
+    --cyan:#22d3ee; --violet:#a78bfa; --glass:rgba(148,163,184,.06); --brd:rgba(148,163,184,.16);
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:auto}
+  body{background:var(--bg);color:var(--ink);overflow-x:hidden;-webkit-font-smoothing:antialiased;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.6}
+  ::selection{background:rgba(34,211,238,.3)}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  a{color:var(--cyan)}
+  button:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+  /* ------- scroll stage ------- */
+  #journey{position:relative;height:820vh}
+  #stage{position:sticky;top:0;height:100vh;overflow:hidden}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 45%,transparent 55%,rgba(2,4,8,.75) 100%)}
+
+  /* progress rail */
+  #rail{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;gap:14px}
+  #rail span{width:8px;height:8px;border-radius:50%;background:rgba(148,163,184,.25);transition:all .35s;display:block}
+  #rail span.on{background:var(--cyan);box-shadow:0 0 12px var(--cyan);transform:scale(1.35)}
+  #pbar{position:fixed;top:0;left:0;height:2px;width:0;z-index:41;background:linear-gradient(90deg,var(--cyan),var(--violet))}
+
+  /* ------- chapters (overlaid text) ------- */
+  .ch{position:absolute;inset:0;display:flex;align-items:center;pointer-events:none;opacity:0;
+    transition:opacity .12s linear;padding:0 clamp(22px,6vw,90px)}
+  .ch.live{pointer-events:auto}
+  .ch-in{max-width:600px;transform:translateY(24px);transition:transform .5s cubic-bezier(.22,1,.36,1)}
+  .ch.live .ch-in{transform:none}
+  .ch.right{justify-content:flex-end;text-align:right}
+  .ch.center{justify-content:center;text-align:center}
+  .ch.center .ch-in{max-width:760px}
+  .kick{font-size:.7rem;font-weight:800;letter-spacing:.3em;text-transform:uppercase;color:var(--cyan)}
+  .kick.v{color:var(--violet)}
+  .ch h1{font-size:clamp(2.8rem,8vw,6rem);font-weight:850;letter-spacing:-.04em;line-height:.98;margin:16px 0;text-wrap:balance}
+  .ch h2{font-size:clamp(1.9rem,4.6vw,3.4rem);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:14px 0 12px;text-wrap:balance}
+  .grad{background:linear-gradient(95deg,var(--cyan) 15%,var(--violet) 85%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .ch p{color:var(--muted);font-size:clamp(1.1rem,1.7vw,1.3rem);max-width:52ch}
+  .ch.right p{margin-left:auto}
+  .ch.center p{margin:0 auto}
+  .ch b{color:var(--ink)}
+  .hint{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;
+    gap:8px;color:var(--faint);font-size:.72rem;letter-spacing:.25em;text-transform:uppercase}
+  .hint .line{width:1px;height:44px;background:linear-gradient(180deg,var(--cyan),transparent);animation:drop 1.8s ease-in-out infinite}
+  @keyframes drop{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1)}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  .statline{display:flex;gap:clamp(18px,4vw,44px);margin-top:26px;flex-wrap:wrap}
+  .ch.right .statline{justify-content:flex-end}
+  .ch.center .statline{justify-content:center}
+  .sv b{display:block;font-size:clamp(1.7rem,3.6vw,2.7rem);font-weight:850;letter-spacing:-.03em;line-height:1}
+  .sv span{font-size:.84rem;color:var(--faint);letter-spacing:.04em;display:block;margin-top:6px;max-width:20ch}
+  .sv.c b{color:var(--cyan);text-shadow:0 0 26px rgba(34,211,238,.4)}
+  .sv.v b{color:var(--violet);text-shadow:0 0 26px rgba(167,139,250,.4)}
+
+  .tagcard{display:inline-block;margin-top:22px;padding:14px 18px;border-radius:14px;border:1px solid var(--brd);
+    background:rgba(5,7,13,.55);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-size:.92rem;color:var(--muted);max-width:46ch}
+  .tagcard em{font-style:normal;color:var(--cyan);font-weight:700}
+
+  .flagrow{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+  .ch.center .flagrow{justify-content:center}
+  .fpill{padding:9px 16px;border-radius:999px;border:1px solid var(--brd);background:rgba(5,7,13,.5);backdrop-filter:blur(8px);
+    font-size:.82rem;font-weight:700;color:var(--muted)}
+  .fpill.hot{border-color:rgba(34,211,238,.5);color:var(--ink);box-shadow:0 0 18px rgba(34,211,238,.15)}
+
+  /* ------- post-journey static sections ------- */
+  section.flat{padding:110px clamp(22px,6vw,90px);border-top:1px solid rgba(148,163,184,.09);position:relative}
+  .flat-in{max-width:1060px;margin:0 auto}
+  .cards3{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px;margin-top:40px}
+  .card{border:1px solid var(--brd);border-radius:18px;padding:26px;background:var(--glass);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:transform .3s,border-color .3s;position:relative;overflow:hidden}
+  .card:hover{transform:translateY(-6px);border-color:rgba(34,211,238,.45)}
+  .card::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:linear-gradient(90deg,var(--cyan),var(--violet));opacity:.7}
+  .card .flag{font-size:1.6rem}
+  .card h3{font-size:1.15rem;font-weight:800;margin:10px 0 6px;letter-spacing:-.01em}
+  .card p{font-size:.98rem;color:var(--muted)}
+  .card .big{font-family:var(--mono);font-size:1.7rem;font-weight:800;color:var(--cyan);display:block;margin-top:16px;letter-spacing:-.02em}
+  .card .big.v{color:var(--violet)} .card .big.s{color:#7dd3fc}
+  .card small{color:var(--faint);font-size:.72rem}
+
+  /* ---------- programmatic workflow simulator (dark) ---------- */
+  #wf{margin-top:48px;display:grid;grid-template-columns:300px 1fr;gap:clamp(24px,4vw,56px);align-items:start}
+  .phone{position:relative;width:280px;margin:0 auto;border-radius:36px;background:#0a0d15;padding:12px;
+    border:1px solid rgba(148,163,184,.25);box-shadow:0 28px 70px rgba(0,0,0,.55),0 0 40px rgba(34,211,238,.08)}
+  .phone .notch{width:90px;height:20px;background:#0a0d15;border-radius:0 0 14px 14px;position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:3}
+  .phone .screen{position:relative;border-radius:26px;background:#10141f;overflow:hidden;padding:34px 14px 16px;min-height:420px}
+  .app-head{font-weight:850;font-size:1rem;letter-spacing:-.02em;margin-bottom:10px;color:var(--ink)}
+  .app-head small{color:var(--faint);font-weight:600;display:block;font-size:.68rem}
+  .tile{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-radius:12px;
+    background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.15);margin-bottom:9px;font-size:.86rem;
+    font-weight:650;transition:all .4s;color:var(--ink)}
+  .tile span{font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
+  .tile.sp{border-color:rgba(34,211,238,.3)}
+  #wf[data-step="4"] .tile.sp{border-color:var(--cyan);background:rgba(34,211,238,.14);
+    box-shadow:0 0 28px rgba(34,211,238,.35);transform:scale(1.04)}
+  .receipt{position:absolute;inset:auto 12px 14px;padding:14px;border-radius:12px;background:#05070d;color:#e8eef4;
+    border:1px solid rgba(167,139,250,.4);font-family:var(--mono);font-size:.74rem;line-height:1.5;opacity:0;
+    transform:translateY(16px);transition:all .45s}
+  .receipt b{color:var(--violet)}
+  #wf[data-step="5"] .receipt{opacity:1;transform:none}
+  .sig{position:absolute;padding:6px 12px;border-radius:999px;background:rgba(5,7,13,.9);border:1px solid rgba(34,211,238,.5);
+    color:var(--cyan);font-size:.7rem;font-weight:750;box-shadow:0 0 22px rgba(34,211,238,.25);
+    opacity:0;transform:scale(.7);transition:all .5s;white-space:nowrap;z-index:4}
+  #wf[data-step="0"] .sig{opacity:1;transform:none}
+  .sig.a{top:8%;left:-38%}.sig.b{top:26%;right:-34%}.sig.c{top:50%;left:-42%}.sig.d{top:70%;right:-38%}
+  .wf-pipe{display:flex;flex-direction:column;gap:10px}
+  .wnode{display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start;padding:16px 18px;border-radius:16px;
+    border:2px solid transparent;background:rgba(148,163,184,.05);transition:all .4s;cursor:pointer;text-align:left;
+    width:100%;font:inherit;color:inherit}
+  .wnode .wi{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:1.25rem;
+    background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.2);transition:all .4s}
+  .wnode b{display:block;font-size:1.02rem;font-weight:800;letter-spacing:-.01em;color:var(--ink)}
+  .wnode small{display:block;font-size:.86rem;color:var(--muted);line-height:1.5;margin-top:2px}
+  .wnode .ms{font-family:var(--mono);font-size:.7rem;color:var(--faint);font-weight:700}
+  .wnode.hot{border-color:var(--cyan);background:rgba(34,211,238,.08);box-shadow:0 0 40px rgba(34,211,238,.12)}
+  .wnode.hot .wi{background:var(--cyan);color:#04141a;border-color:var(--cyan)}
+  .wnode.gold.hot{border-color:var(--violet);background:rgba(167,139,250,.08)}
+  .wnode.gold.hot .wi{background:var(--violet);color:#1a1030}
+  .bids{display:none;gap:6px;margin-top:10px;flex-direction:column}
+  #wf[data-step="2"] .bids{display:flex}
+  .bid{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.76rem;padding:7px 12px;
+    border-radius:8px;background:rgba(5,7,13,.6);border:1px solid rgba(148,163,184,.15);color:var(--muted)}
+  .bid.win{border-color:var(--cyan);color:var(--cyan);font-weight:700}
+  .wf-bar{grid-column:1/-1;display:flex;align-items:center;gap:16px;margin-top:8px}
+  .wf-bar .tr{flex:1;height:8px;border-radius:99px;background:rgba(148,163,184,.1);overflow:hidden}
+  .wf-bar .tr div{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--violet));transition:width .5s}
+  .wf-bar b{font-family:var(--mono);font-size:1rem;color:var(--cyan);min-width:84px;text-align:right}
+  @media(max-width:860px){#wf{grid-template-columns:1fr}.phone{width:min(280px,84vw)}
+    .sig.a{left:2%}.sig.c{left:0}.sig.b{right:2%}.sig.d{right:0}}
+
+  footer{padding:70px clamp(22px,6vw,90px) 90px;border-top:1px solid rgba(148,163,184,.09)}
+  footer h4{font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .src{font-size:.88rem;color:var(--muted);line-height:2;max-width:78ch}
+  .src a{color:var(--muted);text-decoration-color:rgba(148,163,184,.35)} .src a:hover{color:var(--cyan)}
+
+  @media(max-width:700px){
+    .ch{align-items:flex-end;padding-bottom:12vh}
+    .ch.right{justify-content:flex-start;text-align:left}
+    .ch.right p,.ch.right .statline{margin-left:0;justify-content:flex-start}
+    #rail{display:none}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .hint .line{animation:none}
+    .ch{transition:none}.ch-in{transition:none;transform:none}
+  }
+</style>
+
+<div aria-hidden="true" style="position:fixed;left:18px;bottom:14px;z-index:60;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:rgba(148,163,184,.45);pointer-events:none;font-weight:700">© Bharath Vamsi · Retail Media</div>
+<div id="pbar" aria-hidden="true"></div>
+<nav id="rail" aria-hidden="true"><span class="on"></span><span></span><span></span><span></span><span></span><span></span><span></span></nav>
+
+<div id="journey">
+  <div id="stage">
+    <canvas id="gl" aria-label="3D scene: a product cube that fractures into shards as you scroll" role="img"></canvas>
+    <div id="vignette"></div>
+
+    <!-- CH 0 · HERO -->
+    <div class="ch center live" data-a="0" data-b="0.10">
+      <div class="ch-in">
+        <div class="kick">A scroll-driven guide · verified July 2026</div>
+        <p style="font-size:.85rem;color:var(--faint);margin-top:6px;letter-spacing:.04em">by <b style="color:var(--ink)">Bharath Vamsi</b> · Senior Programmatic Manager — Retail Media</p>
+        <h1>Every product<br>is now <span class="grad">an ad.</span></h1>
+        <p>This cube is a box of cereal on a shelf. Keep scrolling — and watch the modern retail business break open.</p>
+      </div>
+      <div class="hint"><div class="line"></div>scroll</div>
+    </div>
+
+    <!-- CH 1 · WHAT IS RMN -->
+    <div class="ch" data-a="0.11" data-b="0.24">
+      <div class="ch-in">
+        <div class="kick">01 · What is retail media?</div>
+        <h2>The store became <span class="grad">the medium.</span></h2>
+        <p>A <b>Retail Media Network (RMN)</b> is a retailer — Amazon, Walmart, FamilyMart, Blinkit — selling ad space on its own turf: search results, apps, in-store screens. Powered by the one thing only retailers have: <b>what you actually buy</b>.</p>
+        <div class="tagcard"><em>Why now?</em> Privacy laws (GDPR, CCPA, Japan's APPI) are killing the third-party cookie. Retailers' first-party purchase data is the legal, precise replacement.</div>
+      </div>
+    </div>
+
+    <!-- CH 2 · FRACTURE / PROFIT -->
+    <div class="ch right" data-a="0.26" data-b="0.42">
+      <div class="ch-in">
+        <div class="kick">02 · The profit engine</div>
+        <h2>Crack it open:<br><span class="grad">the margin flips.</span></h2>
+        <p>Selling the cereal keeps a grocer <b>~3¢ per dollar</b>. Selling the <b>ad above the cereal</b> keeps 70–90¢. Same shelf — a business 20× more profitable hiding inside it.</p>
+        <div class="statline">
+          <div class="sv"><b class="num">~3%</b><span>grocery net margin</span></div>
+          <div class="sv c"><b class="num">70–90%</b><span>retail media ad margin</span></div>
+          <div class="sv v"><b class="num">~⅓</b><span>of Walmart's operating profit, from &lt;1% of revenue</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CH 3 · EXPLOSION / SCALE -->
+    <div class="ch center" data-a="0.44" data-b="0.56">
+      <div class="ch-in">
+        <div class="kick">03 · The explosion</div>
+        <h2>It detonated into a <span class="grad">$71 billion</span> market.</h2>
+        <p>U.S. retail media hits <b>$71.1B in 2026</b> (+17.8% YoY) — it already out-earns all of traditional television (~$50B). Every shard you see is ad money leaving TV, search and social… and landing at the point of sale.</p>
+        <div class="statline">
+          <div class="sv c"><b class="num">$71.1B</b><span>U.S. 2026 spend</span></div>
+          <div class="sv"><b class="num">&gt; TV</b><span>bigger than traditional television</span></div>
+          <div class="sv v"><b class="num">~85%</b><span>held by Amazon + Walmart alone</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CH 4 · THREE WORLDS -->
+    <div class="ch" data-a="0.58" data-b="0.72">
+      <div class="ch-in">
+        <div class="kick v">04 · How it was shaped</div>
+        <h2>Three worlds, <span class="grad">three playbooks.</span></h2>
+        <p>The shards regroup into three constellations. <b>🇺🇸 The U.S.</b> grew it from e-commerce search — a two-giant duopoly. <b>🇯🇵 Japan</b> built it on in-store screens — FamilyMart runs signage in 10,000 stores synced to 26M FamiPay phones. <b>🇮🇳 India</b> rides the 10-minute delivery wave — ads bankroll Blinkit &amp; Zepto's brutal logistics.</p>
+        <div class="flagrow">
+          <span class="fpill hot">🇺🇸 $71.1B · online-first</span>
+          <span class="fpill hot">🇯🇵 ¥900B+ by 2027 · in-store</span>
+          <span class="fpill hot">🇮🇳 ₹4,900 cr · quick-commerce</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CH 5 · CLEAN ROOM -->
+    <div class="ch right" data-a="0.74" data-b="0.88">
+      <div class="ch-in">
+        <div class="kick">05 · The privacy vault</div>
+        <h2>Reassembled as a <span class="grad">clean room.</span></h2>
+        <p>The pieces lock back into a sealed vault — the <b>data clean room</b>. Retailer and brand each load encrypted, anonymized data; an algorithm finds the overlap ("saw the ad <b>and</b> bought it") and only aggregate insights leave. <b>No cookies. No stalking. Still precise.</b></p>
+        <div class="statline">
+          <div class="sv c"><b>IN 🔒</b><span>encrypted purchase + campaign data</span></div>
+          <div class="sv v"><b>OUT ✓</b><span>segments · sales lift · ROAS — zero PII</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CH 6 · OUTRO -->
+    <div class="ch center" data-a="0.90" data-b="1">
+      <div class="ch-in">
+        <div class="kick">The takeaway</div>
+        <h2>A supermarket is no longer a store.<br><span class="grad">It's a media company.</span></h2>
+        <p>And the brands on its shelves are its advertisers. Scroll on for the three regional models &amp; sources.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FLAT: programmatic engine room -->
+<section class="flat">
+  <div class="flat-in">
+    <div class="kick">The engine room · Why programmatic matters</div>
+    <h2 style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;letter-spacing:-.02em;margin:14px 0 6px">Every ad you saw was sold in ~100 milliseconds.</h2>
+    <p style="color:var(--muted);max-width:62ch;margin-top:6px">Retail media runs on <b style="color:var(--ink)">programmatic advertising</b> — an automated, always-on auction. Each time a shopper opens an app or passes a screen, brands' bidding computers (<b style="color:var(--ink)">DSPs, the buying desks</b>) compete for the slot, the retailer's selling computer (<b style="color:var(--ink)">SSP, the sales desk</b>) picks a winner, and independent <b style="color:var(--ink)">verification partners</b> confirm the ad was real, viewable, and brand-safe — all before the page loads. Without this plumbing, retail media couldn't exist at scale.</p>
+    <div class="cards3">
+      <div class="card">
+        <h3>⚡ Scale no human can sell</h3>
+        <p>Millions of ad slots per minute across apps, sites, and in-store screens. Programmatic is the only market mechanism fast enough — it's why RMNs can monetize every impression, not just premium sponsorships.</p>
+        <span class="big num">~100ms</span><small>per real-time auction, before the page loads</small>
+      </div>
+      <div class="card">
+        <h3>🎯 First-party data, acting live</h3>
+        <p>Programmatic pipes are what let a retailer's loyalty data pick which shopper sees which ad in real time — cookie-free — and let AI pre-allocate budgets on live signals instead of last month's report.</p>
+        <span class="big v num">0 cookies</span><small>targeting powered by purchase data, not tracking</small>
+      </div>
+      <div class="card">
+        <h3>🌐 Reach beyond the store + proof</h3>
+        <p>It's also how retailers extend ads off-site (social, video, open web) using their data — the fastest-growing RMN slice — with independent verification and closed-loop measurement built in.</p>
+        <span class="big s num">~18%</span><small>annual growth leaders capture with this infrastructure (eMarketer)</small>
+      </div>
+    </div>
+    <p style="color:var(--faint);font-size:.82rem;margin-top:26px;max-width:78ch">Who runs this playbook: Amazon Advertising · Walmart Connect · Kroger Precision Marketing · Target Roundel · Costco · Ulta Beauty · <b style="color:var(--muted)">Meijer Media</b> (proof regional grocers monetize loyalty data too) · FamilyMart (Japan) · Blinkit &amp; Zepto (India).</p>
+  </div>
+</section>
+
+
+<!-- programmatic workflow simulator -->
+<section class="flat" aria-label="The full programmatic workflow, step by step">
+  <div class="flat-in">
+    <div class="kick">The full workflow · Watch it happen live</div>
+    <h2 style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;letter-spacing:-.02em;margin:14px 0 6px">From a thumb-tap to a verified sale — six moves, ~100ms.</h2>
+    <p style="color:var(--muted);max-width:62ch;margin-top:6px;font-size:1.05rem">The phone below is a real shopper; the pipeline beside it is what fires the instant they open the app. It loops automatically — click any step to freeze it.</p>
+    <div id="wf" data-step="0">
+      <div class="phone" aria-hidden="true">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="app-head">⚡ QuickMart <small>groceries in 10 minutes</small></div>
+          <div class="tile sp">🥣 Oatie Oats <span>Sponsored ✦</span></div>
+          <div class="tile">🥛 Whole Milk</div>
+          <div class="tile">🍞 Sourdough</div>
+          <div class="tile">🍌 Bananas</div>
+          <div class="tile">🥚 Free-range Eggs</div>
+          <div class="receipt">🧾 RECEIPT · Oatie Oats ✓<br><b>matched to Ad #001</b> — sales lift &amp; ROAS reported to brand. No identity shared.</div>
+        </div>
+        <div class="sig a">📍 near store #204</div>
+        <div class="sig b">🛒 breakfast intender</div>
+        <div class="sig c">🪪 loyalty ID (hashed)</div>
+        <div class="sig d">🕗 8:04 AM · mobile</div>
+      </div>
+      <div class="wf-pipe" role="tablist" aria-label="Workflow steps">
+        <button class="wnode hot" data-w="0" role="tab" aria-selected="true"><span class="wi">📱</span><span><b>1 · The signal fires <span class="ms">0–5ms</span></b><small>A shopper opens the app on their phone (or laptop, or walks past a smart screen). Privacy-safe signals attach: rough location, basket context, hashed loyalty ID, time of day. Never their name.</small></span></button>
+        <button class="wnode" data-w="1" role="tab" aria-selected="false"><span class="wi">🏪</span><span><b>2 · The store's desk announces <span class="ms">5–20ms</span></b><small>The retailer's selling computer (SSP) broadcasts: "One premium slot, cereal aisle, breakfast intender — who bids?"</small></span></button>
+        <button class="wnode" data-w="2" role="tab" aria-selected="false"><span class="wi">🤖</span><span><b>3 · Brands' computers bid <span class="ms">20–60ms</span></b><small>DSPs for competing brands price this exact impression using the retailer's first-party data.</small>
+          <span class="bids"><span class="bid win">OATIE OATS <span>$3.42 CPM ✦ WIN</span></span><span class="bid">KRUNCH! <span>$3.10 CPM</span></span><span class="bid">BERRY-O <span>$2.71 CPM</span></span></span></span></button>
+        <button class="wnode" data-w="3" role="tab" aria-selected="false"><span class="wi">🛡️</span><span><b>4 · Referees verify <span class="ms">60–80ms</span></b><small>Independent verification partners confirm the impression is real, viewable, fraud-free and brand-safe.</small></span></button>
+        <button class="wnode gold" data-w="4" role="tab" aria-selected="false"><span class="wi">🖼️</span><span><b>5 · The ad renders <span class="ms">80–100ms</span></b><small>The winning tile appears at the top of the shopper's screen — before the page finishes loading. Watch the phone.</small></span></button>
+        <button class="wnode gold" data-w="5" role="tab" aria-selected="false"><span class="wi">🧾</span><span><b>6 · The loop closes <span class="ms">later, at checkout</span></b><small>The shopper buys. The register matches the receipt to the ad inside a clean room and tells the brand "it worked" — closed-loop measurement, zero PII.</small></span></button>
+      </div>
+      <div class="wf-bar" aria-hidden="true"><div class="tr"><div id="wf-fill"></div></div><b id="wf-ms">0 ms</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- FLAT: region cards -->
+<section class="flat">
+  <div class="flat-in">
+    <div class="kick v">Reference · The three models</div>
+    <h2 style="font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;letter-spacing:-.02em;margin:14px 0 6px">Keep these numbers.</h2>
+    <div class="cards3">
+      <div class="card"><span class="flag">🇺🇸</span>
+        <h3>United States — the behemoth model</h3>
+        <p>Born in Amazon's search bar, scaled online. Amazon + Walmart hold ~85% and capture ~89% of every new dollar — but Kroger, Target (Roundel), and regional grocers like Meijer (Meijer Media) run the same playbook. Walmart's ads: $4.4B (2024) → $6.4B (2025).</p>
+        <span class="big num">$60.3B → $71.1B</span><small>2025 → 2026, +17.8% (eMarketer)</small>
+      </div>
+      <div class="card"><span class="flag">🇯🇵</span>
+        <h3>Japan — the in-store screen model</h3>
+        <p>Lower e-commerce adoption pushed retail media into physical stores: digital signage, shelf labels, register screens. FamilyMartVision covers ~60% of its network, synced to the FamiPay app.</p>
+        <span class="big v num">¥470B → ¥900B+</span><small>2024 → 2027 projection (MGSSI / CARTA)</small>
+      </div>
+      <div class="card"><span class="flag">🇮🇳</span>
+        <h3>India — the quick-commerce wave</h3>
+        <p>The app is the shelf. Sponsored tiles inside Blinkit, Zepto &amp; Instamart fund 10-minute delivery — ads are already ~15% of Blinkit's revenue; Zepto's ad revenue grew +151% in FY26.</p>
+        <span class="big s num">₹3,000 → ₹4,900 cr</span><small>2025 → 2026E (Storyboard18)</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="flat-in">
+    <h4>Sources &amp; verification</h4>
+    <p class="src">
+      Core research: Mitsui &amp; Co. Global Strategic Studies Institute, <i>"The Current State and Outlook for Retail Media"</i> (Nov 2025) ·
+      <a href="https://www.emarketer.com/content/retail-media-ad-spending-forecast-h1-2026">eMarketer Retail Media Forecast H1 2026</a> ·
+      <a href="https://www.emarketer.com/content/us-ad-spending-2026">eMarketer US Ad Spending 2026</a> ·
+      <a href="https://www.adexchanger.com/commerce/walmarts-ad-revenue-totaled-6-4-billion-in-2025-as-the-ecom-flywheel-started-to-spin/">AdExchanger — Walmart $6.4B</a> ·
+      <a href="https://www.storyboard18.com/amp/brand-marketing/fmcg-brands-increase-ad-spend-on-blinkit-zepto-and-instamart-for-growth-ws-l-99756.htm">Storyboard18 — India ₹4,900 cr</a> ·
+      <a href="https://martech.org/why-we-care-about-retail-media-networks/">MarTech — ad margins 70–90% vs retail 3–4%</a>.
+      Figures are forecasts/estimates from cited sources; currencies as originally reported.
+      Built by <b style="color:var(--ink)">Bharath Vamsi</b> — Senior Programmatic Manager, Retail Media. Company names cited are public industry examples from published research, not client references.
+    </p>
+  </div>
+</footer>
+
+<script>
+(() => {
+"use strict";
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cv = document.getElementById("gl");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+
+/* ============ build the fractured cube ============ */
+/* Each face of a cube is split into an N×N grid; each cell is one shard (quad).
+   Every shard gets: base verts (intact cube), explosion vector, cluster target, vault target. */
+const N = 5, S = 1;               // grid per face, half-size of cube
+const shards = [];
+const rnd = (a,b) => a + Math.random()*(b-a);
+
+// face definitions: origin corner, u axis, v axis, normal
+const faces = [
+  {o:[-S,-S, S], u:[2*S/N,0,0], v:[0,2*S/N,0], n:[0,0, 1]},   // front
+  {o:[ S,-S,-S], u:[-2*S/N,0,0],v:[0,2*S/N,0], n:[0,0,-1]},   // back
+  {o:[ S,-S, S], u:[0,0,-2*S/N],v:[0,2*S/N,0], n:[ 1,0,0]},   // right
+  {o:[-S,-S,-S], u:[0,0, 2*S/N],v:[0,2*S/N,0], n:[-1,0,0]},   // left
+  {o:[-S, S, S], u:[2*S/N,0,0], v:[0,0,-2*S/N],n:[0, 1,0]},   // top
+  {o:[-S,-S,-S], u:[2*S/N,0,0], v:[0,0, 2*S/N],n:[0,-1,0]},   // bottom
+];
+const add = (a,b,s=1) => [a[0]+b[0]*s, a[1]+b[1]*s, a[2]+b[2]*s];
+
+// three constellation centers for the "three worlds" phase
+const CLUSTERS = [[-2.6,0.9,0],[0,-1.5,0.6],[2.6,0.9,-0.3]];
+
+let idx = 0;
+for (const f of faces) for (let i=0;i<N;i++) for (let j=0;j<N;j++) {
+  const p00 = add(add(f.o,f.u,i),f.v,j);
+  const verts = [p00, add(p00,f.u), add(add(p00,f.u),f.v), add(p00,f.v)];
+  const c = verts.reduce((a,v)=>add(a,v,1),[0,0,0]).map(x=>x/4);
+  const jit = [rnd(-.9,.9), rnd(-.9,.9), rnd(-.9,.9)];
+  const exp = [f.n[0]*rnd(1.6,3.4)+jit[0], f.n[1]*rnd(1.6,3.4)+jit[1], f.n[2]*rnd(1.6,3.4)+jit[2]];
+  const cl = CLUSTERS[idx % 3];
+  // random point on a small sphere around the cluster center
+  const th = rnd(0,6.283), ph = Math.acos(rnd(-1,1)), r = rnd(.45,.95);
+  const clT = [cl[0]+r*Math.sin(ph)*Math.cos(th), cl[1]+r*Math.sin(ph)*Math.sin(th), cl[2]+r*Math.cos(ph)];
+  shards.push({
+    rel: verts.map(v => [v[0]-c[0], v[1]-c[1], v[2]-c[2]]),   // shard shape, local
+    base: c, exp, clT,
+    vault: c.map(x => x*0.72),                                 // tighter reassembled cube
+    spin: [rnd(-2.2,2.2), rnd(-2.2,2.2), rnd(-2.2,2.2)],
+    hue: Math.random(), seed: rnd(0,6.28),
+  });
+  idx++;
+}
+
+/* ============ math helpers ============ */
+const lerp = (a,b,t) => a+(b-a)*t;
+const l3 = (a,b,t) => [lerp(a[0],b[0],t), lerp(a[1],b[1],t), lerp(a[2],b[2],t)];
+const smooth = t => t<=0?0 : t>=1?1 : t*t*(3-2*t);
+const seg = (p,a,b) => smooth((p-a)/(b-a));
+function rotXY(v, ax, ay){
+  let [x,y,z] = v;
+  let c = Math.cos(ay), s = Math.sin(ay);           // yaw
+  [x,z] = [x*c+z*s, -x*s+z*c];
+  c = Math.cos(ax); s = Math.sin(ax);               // pitch
+  [y,z] = [y*c-z*s, y*s+z*c];
+  return [x,y,z];
+}
+// mix cyan(#22d3ee) → violet(#a78bfa)
+const mixc = t => [Math.round(lerp(34,167,t)), Math.round(lerp(211,139,t)), Math.round(lerp(238,250,t))];
+
+/* ============ scene state from scroll ============ */
+let prog = 0, mx = 0, my = 0, t0 = performance.now();
+
+/* phase timeline (matches chapter data-a/b):
+   0.00–0.11 intact hero · 0.11–0.26 slight breathe/crack · 0.26–0.44 fracture open
+   0.44–0.58 full explosion · 0.58–0.74 three clusters · 0.74–0.90 vault reassembly · 0.90–1 sealed vault */
+function shardPos(s, p, time){
+  const crack  = seg(p, 0.13, 0.26) * 0.22;                 // hairline separation
+  const open   = seg(p, 0.26, 0.44);                        // fracture
+  const boom   = seg(p, 0.44, 0.56);                        // detonation
+  const gather = seg(p, 0.58, 0.70);                        // → clusters
+  const vault  = seg(p, 0.74, 0.88);                        // → vault
+  const drift = Math.sin(time*0.9 + s.seed)*0.06;           // ambient float
+
+  // stage A: base + crack/open/boom along explosion vector
+  const k = crack + open*0.9 + boom*2.6;
+  let pos = add(s.base, s.exp, k);
+  // stage B: pull toward cluster target
+  if (gather > 0) pos = l3(pos, s.clT, gather);
+  // orbital swirl while clustered
+  if (gather > 0 && vault < 1){
+    const sw = gather * (1-vault);
+    const a = time*0.5 + s.seed;
+    pos = [pos[0]+Math.cos(a)*0.12*sw, pos[1]+Math.sin(a*1.3)*0.1*sw, pos[2]+Math.sin(a)*0.12*sw];
+  }
+  // stage C: pull into vault cube
+  if (vault > 0) pos = l3(pos, s.vault, vault);
+  const flying = Math.min(1, k) * (1-vault);
+  return {pos:[pos[0], pos[1]+drift*flying, pos[2]], tumble: s.spin.map(x=>x*(open+boom)*(1-vault)), flying};
+}
+
+/* ============ render ============ */
+function resize(){
+  DPR = Math.min(2, devicePixelRatio||1);
+  W = cv.width = cv.offsetWidth*DPR; H = cv.height = cv.offsetHeight*DPR;
+}
+resize(); addEventListener("resize", resize);
+
+addEventListener("mousemove", e => {
+  mx = (e.clientX/innerWidth - .5); my = (e.clientY/innerHeight - .5);
+}, {passive:true});
+
+const journey = document.getElementById("journey");
+function readScroll(){
+  const r = journey.getBoundingClientRect();
+  const total = r.height - innerHeight;
+  prog = Math.max(0, Math.min(1, -r.top/total));
+}
+
+const FOV = 3.6;                                  // camera distance
+function render(time){
+  ctx.clearRect(0,0,W,H);
+  const t = (time - t0)/1000;
+  // camera: slow auto-orbit + scroll rotation + mouse parallax
+  const ry = 0.65 + t*0.12 + prog*7.2 + mx*0.5;
+  const rx = 0.32 + Math.sin(t*0.2)*0.05 + my*0.35 + seg(prog,0.44,0.56)*0.25;
+  const scale = Math.min(W,H) * (0.30 - seg(prog,0.44,0.58)*0.075 + seg(prog,0.74,0.9)*0.05);
+  const cx = W/2, cy = H*0.46;
+  const glow = 1 - seg(prog,0.26,0.44)*0.3;
+
+  // background nebula tied to progress
+  const g = ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*0.7);
+  const hueMix = seg(prog,0.55,0.8);
+  g.addColorStop(0, `rgba(${hueMix<0.5?"8,80,110":"70,50,140"},${0.10+seg(prog,0.44,0.56)*0.10})`);
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  // project all shards
+  const polys = [];
+  for (const s of shards){
+    const {pos, tumble, flying} = shardPos(s, prog, t);
+    const pts2 = []; let zsum = 0; let vis = true;
+    for (const rv of s.rel){
+      // tumble shard locally, then place, then world-rotate
+      let v = flying>0.02 ? rotXY(rv, tumble[0]*flying, tumble[1]*flying) : rv;
+      v = rotXY([v[0]+pos[0], v[1]+pos[1], v[2]+pos[2]], rx, ry);
+      const z = v[2] + FOV;
+      if (z < 0.35){ vis = false; break; }
+      const f = (FOV*0.85)/z;
+      pts2.push([cx + v[0]*scale*f, cy - v[1]*scale*f]);
+      zsum += z;
+    }
+    if (!vis) continue;
+    // face normal in view space for shading
+    const a = s.rel[0], b = s.rel[1], c = s.rel[2];
+    let nx=(b[1]-a[1])*(c[2]-a[2])-(b[2]-a[2])*(c[1]-a[1]),
+        ny=(b[2]-a[2])*(c[0]-a[0])-(b[0]-a[0])*(c[2]-a[2]),
+        nz=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+    let n = rotXY([nx,ny,nz], rx, ry);
+    const nl = Math.hypot(n[0],n[1],n[2])||1;
+    const lum = 0.35 + 0.65*Math.max(0,( -n[2]/nl )*0.7 + (n[1]/nl)*0.3 + 0.25);
+    polys.push({pts2, z: zsum/4, hue: s.hue, lum, flying});
+  }
+  polys.sort((p,q) => q.z - p.z);
+
+  for (const p of polys){
+    const [r,gc,b] = mixc(p.hue);
+    const L = Math.min(1.15, p.lum) * glow;
+    ctx.beginPath();
+    ctx.moveTo(p.pts2[0][0], p.pts2[0][1]);
+    for (let i=1;i<4;i++) ctx.lineTo(p.pts2[i][0], p.pts2[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(${Math.round(r*L*0.35)},${Math.round(gc*L*0.32)},${Math.round(b*L*0.42)},${0.92})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${r},${gc},${b},${0.35 + p.flying*0.3})`;
+    ctx.lineWidth = DPR*0.8;
+    ctx.stroke();
+  }
+  // core glow when intact/vaulted
+  const core = (1-seg(prog,0.26,0.5)) + seg(prog,0.74,0.9);
+  if (core > 0.05){
+    const cg = ctx.createRadialGradient(cx,cy,0,cx,cy,scale*1.6);
+    cg.addColorStop(0, `rgba(34,211,238,${0.10*core})`);
+    cg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = cg; ctx.fillRect(0,0,W,H);
+  }
+}
+
+/* ============ chapters + rail + progress bar ============ */
+const chs = [...document.querySelectorAll(".ch")];
+const dots = [...document.querySelectorAll("#rail span")];
+const pbar = document.getElementById("pbar");
+function updateUI(){
+  pbar.style.width = (prog*100).toFixed(2) + "%";
+  let liveIdx = 0;
+  chs.forEach((c,i) => {
+    const a = +c.dataset.a, b = +c.dataset.b, fade = 0.035;
+    let o = 0;
+    if (prog >= a && prog <= b){
+      const fin  = a === 0 ? 1 : (prog-a)/fade;   // first chapter starts visible
+      const fout = b === 1 ? 1 : (b-prog)/fade;   // last chapter never fades out
+      o = Math.min(1, fin, fout);
+      liveIdx = i;
+    }
+    c.style.opacity = o.toFixed(3);
+    c.classList.toggle("live", o > 0.35);
+  });
+  dots.forEach((d,i) => d.classList.toggle("on", i === liveIdx));
+}
+
+function frame(time){
+  readScroll();
+  render(time);
+  updateUI();
+  requestAnimationFrame(frame);
+}
+if (reduced){
+  // static: render key poses on scroll only, no auto-orbit
+  const staticDraw = () => { readScroll(); render(3000); updateUI(); };
+  addEventListener("scroll", staticDraw, {passive:true});
+  staticDraw();
+} else {
+  requestAnimationFrame(frame);
+}
+})();
+
+/* ============ programmatic workflow simulator ============ */
+(() => {
+  const wf=document.getElementById("wf");
+  if (!wf) return;
+  const nodes=[...wf.querySelectorAll(".wnode")];
+  const fill=document.getElementById("wf-fill");
+  const msEl=document.getElementById("wf-ms");
+  const MS=[5,20,60,80,100,100];
+  const LBL=["5 ms","20 ms","60 ms","80 ms","100 ms","✓ sold"];
+  let step=0, pin=0;
+  function setStep(i){
+    step=i; wf.dataset.step=i;
+    nodes.forEach((n,j)=>{n.classList.toggle("hot",j===i);n.setAttribute("aria-selected",String(j===i));});
+    fill.style.width=MS[i]+"%";
+    msEl.textContent=LBL[i];
+  }
+  nodes.forEach(n=>n.addEventListener("click",()=>{setStep(+n.dataset.w);pin=Date.now();}));
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches){
+    setInterval(()=>{ if (Date.now()-pin<9000) return; setStep((step+1)%6); },2600);
+  }
+  setStep(0);
+})();
+</script>
+</body></html>
